@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notion Chat & Folder Drag Widget</title>
+  <style>
+    :root {
+      --bg-color: #f7f6f3;
+      --card-bg: #ffffff;
+      --text-main: #37352f;
+      --text-sub: #787774;
+      --border-color: #e9e9e8;
+      --accent-color: #2eaadc;
+      --chat-my-bg: #eef6fc;
+      --chat-my-text: #1d4ed8;
+      --folder-hover: #f0ede6;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #191919;
+        --card-bg: #202020;
+        --text-main: #d4d4d4;
+        --text-sub: #9b9b9b;
+        --border-color: #2f2f2f;
+        --accent-color: #38bdf8;
+        --chat-my-bg: #1e293b;
+        --chat-my-text: #93c5fd;
+        --folder-hover: #2a2a2a;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 12px;
+    }
+
+    .title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-sub);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .folder-container {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .folder {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px dashed var(--border-color);
+      border-radius: 8px;
+      padding: 10px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .folder:hover, .folder.drag-over {
+      background: var(--folder-hover);
+      border-color: var(--accent-color);
+      transform: translateY(-2px);
+    }
+
+    .folder-icon { font-size: 20px; }
+    .folder-name { font-size: 12px; font-weight: 500; }
+    .folder-count { 
+      font-size: 10px; 
+      background: var(--border-color); 
+      color: var(--text-sub);
+      padding: 2px 6px; 
+      border-radius: 10px; 
+    }
+
+    .view-toggle {
+      display: flex;
+      gap: 8px;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-sub);
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .tab-btn.active {
+      color: var(--text-main);
+      font-weight: 600;
+      background: var(--card-bg);
+    }
+
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-right: 4px;
+    }
+
+    .chat-bubble {
+      align-self: flex-end;
+      max-width: 85%;
+      background: var(--chat-my-bg);
+      color: var(--chat-my-text);
+      border: 1px solid var(--border-color);
+      padding: 10px 14px;
+      border-radius: 14px 14px 2px 14px;
+      font-size: 13px;
+      line-height: 1.4;
+      cursor: grab;
+      position: relative;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      word-break: break-word;
+    }
+
+    .chat-bubble:active { cursor: grabbing; }
+    .chat-bubble.dragging { opacity: 0.4; }
+
+    .delete-btn {
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      font-size: 10px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .chat-bubble:hover .delete-btn { display: flex; }
+
+    .input-area {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .chat-input {
+      flex: 1;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--text-main);
+      outline: none;
+    }
+
+    .chat-input:focus {
+      border-color: var(--accent-color);
+    }
+
+    .send-btn {
+      background: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0 14px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: var(--text-sub);
+      font-size: 12px;
+      margin-auto: auto;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="title">💬 Quick Chat & Drag Note</div>
+  </header>
+
+  <!-- 드래그 앤 드롭 폴더 영역 -->
+  <div class="folder-container">
+    <div class="folder" data-category="idea" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'idea')" onclick="filterCategory('idea')">
+      <span class="folder-icon">💡</span>
+      <span class="folder-name">아이디어</span>
+      <span class="folder-count" id="count-idea">0</span>
+    </div>
+    <div class="folder" data-category="todo" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'todo')" onclick="filterCategory('todo')">
+      <span class="folder-icon">✅</span>
+      <span class="folder-name">할 일</span>
+      <span class="folder-count" id="count-todo">0</span>
+    </div>
+    <div class="folder" data-category="archive" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'archive')" onclick="filterCategory('archive')">
+      <span class="folder-icon">📦</span>
+      <span class="folder-name">보관함</span>
+      <span class="folder-count" id="count-archive">0</span>
+    </div>
+  </div>
+
+  <!-- 탭 필터 영역 -->
+  <div class="view-toggle">
+    <button class="tab-btn active" id="tab-all" onclick="filterCategory('all')">전체보기</button>
+    <button class="tab-btn" id="tab-inbox" onclick="filterCategory('inbox')">미분류</button>
+  </div>
+
+  <!-- 채팅 리스트 영역 -->
+  <div class="chat-area" id="chat-area">
+    <div class="empty-state">생각나는 내용을 입력하고<br>상단 폴더로 드래그해서 정리해보세요!</div>
+  </div>
+
+  <!-- 입력창 -->
+  <form class="input-area" onsubmit="addMessage(event)">
+    <input type="text" class="chat-input" id="chat-input" placeholder="메시지 입력..." autocomplete="off">
+    <button type="submit" class="send-btn">전송</button>
+  </form>
+
+  <script>
+    let messages = JSON.parse(localStorage.getItem('notion_chat_widget_data')) || [];
+    let currentFilter = 'all';
+    let draggedId = null;
+
+    function saveAndRender() {
+      localStorage.setItem('notion_chat_widget_data', JSON.stringify(messages));
+      updateCounts();
+      renderChat();
+    }
+
+    function addMessage(e) {
+      e.preventDefault();
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const newMessage = {
+        id: Date.now().toString(),
+        text: text,
+        category: 'inbox'
+      };
+
+      messages.push(newMessage);
+      input.value = '';
+      saveAndRender();
+    }
+
+    function deleteMessage(id) {
+      messages = messages.filter(m => m.id !== id);
+      saveAndRender();
+    }
+
+    function updateCounts() {
+      ['idea', 'todo', 'archive'].forEach(cat => {
+        const count = messages.filter(m => m.category === cat).length;
+        document.getElementById(`count-${cat}`).innerText = count;
+      });
+    }
+
+    function filterCategory(cat) {
+      currentFilter = cat;
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      if (cat === 'all') document.getElementById('tab-all').classList.add('active');
+      if (cat === 'inbox') document.getElementById('tab-inbox').classList.add('active');
+      renderChat();
+    }
+
+    function renderChat() {
+      const chatArea = document.getElementById('chat-area');
+      chatArea.innerHTML = '';
+
+      let filtered = messages;
+      if (currentFilter !== 'all') {
+        filtered = messages.filter(m => m.category === currentFilter);
+      }
+
+      if (filtered.length === 0) {
+        chatArea.innerHTML = `<div class="empty-state">메시지가 없습니다.</div>`;
+        return;
+      }
+
+      filtered.forEach(msg => {
+        const bubble = document.createElement('div');
+        bubble.className = 'chat-bubble';
+        bubble.draggable = true;
+        bubble.innerText = msg.text;
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'delete-btn';
+        delBtn.innerText = '✕';
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          deleteMessage(msg.id);
+        };
+
+        bubble.appendChild(delBtn);
+
+        bubble.addEventListener('dragstart', (e) => {
+          draggedId = msg.id;
+          bubble.classList.add('dragging');
+        });
+
+        bubble.addEventListener('dragend', () => {
+          bubble.classList.remove('dragging');
+        });
+
+        chatArea.appendChild(bubble);
+      });
+
+      chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.currentTarget.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+      e.currentTarget.classList.remove('drag-over');
+    }
+
+    function handleDrop(e, category) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      if (!draggedId) return;
+
+      const msg = messages.find(m => m.id === draggedId);
+      if (msg) {
+        msg.category = category;
+        saveAndRender();
+      }
+      draggedId = null;
+    }
+
+    // 초기 실행
+    updateCounts();
+    renderChat();
+  </script>
+</body>
+</html>
